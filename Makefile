@@ -1,36 +1,34 @@
-CC       := g++
-CFLAGS   := -Wall -std=c++11 -O3
-LIBS     := -ltbb -lsqlite3
-INCLUDES := -Iinc
-BIN      := airis
+CC=g++
 
-SRCDIR   := src
-OBJDIR   := obj
+TARGET_EXEC ?= airis
 
-SRCS=$(shell find $(SRCDIR) -type f -name *.cpp)
-OBJS=$(patsubst $(SRCDIR)/%, $(OBJDIR)/%, $(SRCS:.cpp=.o))
+BUILD_DIR ?= build
+SRC_DIR ?= src
 
-# make sure dir exists
-DIR_GUARD=@mkdir -p $(@D)
+INCLUDES=-Iinclude
+LIBS=-ltbb -lsqlite3
+
+SRCS := $(shell find $(SRC_DIR) -name *.cpp)
+OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
+DEPS := $(OBJS:.o=.d)
+
+CPPFLAGS ?= -MMD -MP -O3 -std=c++11
+
+$(TARGET_EXEC): $(OBJS)
+	$(CC) $(OBJS) $(INCLUDES) $(LIBS) -o $@
+
+# c++ source
+$(BUILD_DIR)/%.cpp.o: %.cpp
+	$(MKDIR_P) $(dir $@)
+	$(CC) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
 
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.cpp
-	$(DIR_GUARD)
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
-
-all: main
-
-main: $(OBJS)
-	$(CC) -o $(BIN) $(OBJS) $(CFLAGS) $(LIBS)
+.PHONY: clean
 
 clean:
-	rm airis .depend
-	rm -rf $(OBJDIR)
+	rm -rf $(BUILD_DIR)
+	rm $(TARGET_EXEC)
 
-depend: .depend
+-include $(DEPS)
 
-.depend: $(SRCS)
-	rm -f ./.depend
-	$(CC) $(CFLAGS) -MM $^ > ./.depend;
-
-include .depend
+MKDIR_P ?= @mkdir -p

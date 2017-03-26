@@ -5,6 +5,8 @@
 #include <sstream>
 #include <iostream>
 #include <string>
+#include <algorithm>
+#include <iterator>
 
 class DateTime {
 
@@ -18,52 +20,68 @@ public:
 	}
 
 	DateTime(const std::string d) {
-		std::istringstream ss(d);
-		std::string token;
+		set(0, 0, 0, 0, 0, 0);
 
-		std::vector<int> values;
+		size_t numSpaces = std::count(d.begin(), d.end(), ' ');
 
-		while (std::getline(ss, token, '-')) {
-			values.push_back(std::stoi(token));
-		}
-
-		if (values.size() == 3) {
-			// assume YYYY-MM-DD format
-			set(values[0], values[1], values[2], 0, 0, 0);
+		// assume "YYYY-MM-DD" format
+		if (numSpaces == 0) {
+			setYMD(d);
 			return;
 		}
 
-		throw std::invalid_argument("date must be of format YYYY-MM-DD");
+		if (numSpaces == 1) {
+			// assume "YYYY-MM-DD HH:MM:SS" format
+			std::istringstream iss(d);
+
+			std::vector<std::string> tokens;
+			std::copy(std::istream_iterator<std::string>(iss),
+				std::istream_iterator<std::string>(),
+				std::back_inserter(tokens));
+
+			if (tokens.size() == 2) {
+				setYMD(tokens.at(0));
+				setHMS(tokens.at(1));
+				return;
+			}
+
+			throw std::invalid_argument("date must be of format YYYY-MM-DD HH:MM:SS");
+		}
 	}
 
 	void set(int year, int month, int day, int hours, int minutes, int seconds) {
-		int days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+		if (year != -1 && month != -1 && day != -1) {
+			int days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-		// account for leap year
-		if (((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0)) {
-			leap = true;
-			days_in_month[1] = 29; // adjust february days
-		} else {
-			leap = false;
+			// account for leap year
+			if (((year % 4 == 0) && (year % 100 != 0)) || (year % 400 == 0)) {
+				leap = true;
+				days_in_month[1] = 29; // adjust february days
+			} else {
+				leap = false;
+			}
+
+			this->dt = 1000 * year;
+			for (int i = 0; i < month - 1; i++) {
+				this->dt += days_in_month[i];
+			}
+			this->dt += day;
+
+			this->year = year;
+			this->month = month;
+			this->day = day;
 		}
 
-		this->dt = 1000 * year;
-		for (int i = 0; i < month - 1; i++) {
-			this->dt += days_in_month[i];
+		if (hours != -1 && minutes != -1 && seconds != -1) {
+			int seconds_of_day = (60 * 60 * hours) + (60 * minutes) + seconds;
+			int total_seconds = 24 * 60 * 60;
+
+			this->dt += (double)seconds_of_day / (double)total_seconds;
+
+			this->hours = hours;
+			this->minutes = minutes;
+			this->seconds = seconds;
 		}
-		this->dt += day;
-
-		int seconds_of_day = (60 * 60 * hours) + (60 * minutes) + seconds;
-		int total_seconds = 24 * 60 * 60;
-
-		this->dt += (double)seconds_of_day / (double)total_seconds;
-
-		this->year = year;
-		this->month = month;
-		this->day = day;
-		this->hours = hours;
-		this->minutes = minutes;
-		this->seconds = seconds;
 	}
 
 	DateTime subtractOneDay() {
@@ -100,9 +118,9 @@ public:
 
 	std::string to_string() const {
 		std::string ret;
-		ret += appendZero(year) + std::string("-") + appendZero(month) + std::string("-") + appendZero(day);
+		ret += prependZero(year) + std::string("-") + prependZero(month) + std::string("-") + prependZero(day);
 		ret += " ";
-		ret += appendZero(hours) + std::string(":") + appendZero(minutes) + std::string(":") + appendZero(seconds);
+		ret += prependZero(hours) + std::string(":") + prependZero(minutes) + std::string(":") + prependZero(seconds);
 		return ret;
 	
 	}
@@ -121,7 +139,45 @@ public:
 	friend bool operator< (const DateTime &d1, const DateTime &d2) { return d1.dt < d2.dt; }
 
 private:
-	std::string appendZero(int num) const {
+	// assume ymd is in form "YYYY-MM-DD"
+	void setYMD(const std::string &ymd) {
+		std::istringstream ss(ymd);
+
+		std::string token;
+		std::vector<int> values;
+		while (std::getline(ss, token, '-')) {
+			values.push_back(std::stoi(token));
+		}
+
+		if (values.size() == 3) {
+			// assume "YYYY-MM-DD" format
+			set(values[0], values[1], values[2], -1, -1, -1);
+			return;
+		}
+
+		throw std::invalid_argument("date must be of format YYYY-MM-DD");
+	}
+
+	// assume hms is in form HH:MM:SS
+	void setHMS(const std::string &hms) {			
+		std::istringstream ss(hms);
+
+		std::string token;
+		std::vector<int> values;
+		while (std::getline(ss, token, ':')) {
+			values.push_back(std::stoi(token));
+		}
+
+		if (values.size() == 3) {
+			// assume "HH:MM:SS" format
+			set(-1, -1, -1, values[0], values[1], values[2]);
+			return;
+		}
+
+		throw std::invalid_argument("date must be of format HH:MM:SS");
+	}
+
+	std::string prependZero(int num) const {
 		std::string ret;
 		if (0 <= num && num < 10) {
 			ret += "0";

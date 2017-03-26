@@ -27,6 +27,10 @@
 #include "parameterstore.h"
 #include "signalstore.h"
 
+#include "portfolio.h"
+#include "order.h"
+#include "position.h"
+
 double computeSignal(ParameterStore &paramStore, const std::string &ticker, const Slices &slices, size_t todayIndex, const CLAs &args, bool bestSignal);
 
 void opt(StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args);
@@ -51,43 +55,60 @@ int main(int argc, char **argv) {
 	CLAs args(argc, argv);
 	const std::string action = args.action;
 
-
+	Portfolio portfolio("data/PORTFOLIO.db");
 	StockMarket market("data/HISTORY.db");
 	ParameterStore paramStore("data/PARAMETERS.db");
 	SignalStore sigStore("data/TECH-SIGNALS.db");
 
-	for (const auto &ticker : args.tickers) {
-		if (MUST_EXIT) {
-			std::cout << "Upon request, exiting..." << std::endl;
-			break;
+
+	// run simulation
+	if (action == "sim") {
+		for (int i = 0; i < 0; i++) {
+			DateTime dt;
+			std::vector<Order> orders = portfolio.getOrders(market, sigStore, dt);
+			portfolio.execOrders(orders);
 		}
 
-		if (action == "opt") {
-			opt(market, paramStore, ticker, args);
-		}
-
-		if (action == "run") {
-			try {
-				run(market, paramStore, ticker, args);
-			} catch (std::exception &e) {
-				std::cout << "Error: " << e.what() << std::endl;
-				continue;
-			}
-		}
-
-		if (action == "sig") {
-			try {
-				sig(sigStore, market, paramStore, ticker, args);
-			} catch (std::exception &e) {
-				std::cout << "Error: " << e.what() << std::endl;
-				continue;
-			}
-		}
+		return 0;
 	}
 
-	// compress db to save space
-	if (action == "opt") {
-		paramStore.vacuum();
+
+	if (args.tickers.size() == 0) {
+		std::cout << "Error: '" << action << "' requires at least one ticker specified..." << std::endl;
+	} else {
+		for (const auto &ticker : args.tickers) {
+			if (MUST_EXIT) {
+				std::cout << "Upon request, exiting..." << std::endl;
+				break;
+			}
+
+			if (action == "opt") {
+				opt(market, paramStore, ticker, args);
+			}
+	
+			if (action == "run") {
+				try {
+					run(market, paramStore, ticker, args);
+				} catch (std::exception &e) {
+					std::cout << "Error: " << e.what() << std::endl;
+					continue;
+				}
+			}
+
+			if (action == "sig") {
+				try {
+					sig(sigStore, market, paramStore, ticker, args);
+				} catch (std::exception &e) {
+					std::cout << "Error: " << e.what() << std::endl;
+					continue;
+				}
+			}
+		}
+
+		// compress db to save space
+		if (action == "opt") {
+			paramStore.vacuum();
+		}
 	}
 }
 

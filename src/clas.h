@@ -15,12 +15,13 @@ public:
 		allowed.push_back("run");
 		allowed.push_back("opt");
 		allowed.push_back("sig");
+		allowed.push_back("sim");
 		TCLAP::ValuesConstraint<std::string> allowedVals(allowed);
 		TCLAP::UnlabeledValueArg<std::string> actionArg("action", "specifies whether the program should run (using preoptimized parameters) or optimize",
 									true, "action", &allowedVals);
 
 		TCLAP::UnlabeledMultiArg<std::string> tickersArg("tickers", "specifies the tickers for which the program will execute",
-									true, "tickers");
+									false, "tickers");
 	
 		cmd.add(tbbSwitch);
 		cmd.add(verboseSwitch);
