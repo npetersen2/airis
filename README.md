@@ -1,5 +1,8 @@
-Algorithmic Trading Platform
-============================
+Project Airis
+=============
+
+Algorithmic Trading Engine
+----------------------------
 
 Algorithmic trading using both technical and fundamental analysis with stock-specific optimized parameters obtained via machine learning.
 
