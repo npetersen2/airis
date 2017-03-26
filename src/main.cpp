@@ -60,13 +60,22 @@ int main(int argc, char **argv) {
 	ParameterStore paramStore("data/PARAMETERS.db");
 	SignalStore sigStore("data/TECH-SIGNALS.db");
 
-
 	// run simulation
 	if (action == "sim") {
-		for (int i = 0; i < 0; i++) {
-			DateTime dt;
+		DateTime initDt;
+
+		DateTime dt = market.nextDtAfter(initDt);
+		while (dt != initDt) {
+			std::cout << "gettings orders for " << dt << std::endl;
 			std::vector<Order> orders = portfolio.getOrders(market, sigStore, dt);
 			portfolio.execOrders(orders);
+
+			dt = market.nextDtAfter(dt);
+
+			if (MUST_EXIT) {
+				std::cout << "Upon request, exiting..." << std::endl;
+				break;
+			}
 		}
 
 		return 0;
@@ -115,11 +124,14 @@ int main(int argc, char **argv) {
 void sig(SignalStore &sigStore, StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args) {
 	Slices slices = market.loadAll(ticker);
 
-	std::cout << "Computing " << slices.size() << " signals for $" << ticker << " from " << slices.at(0).first << " to " << slices.last() << "..." << std::flush;
+	DateTime lastDt = sigStore.lastDtFor(ticker);
+	unsigned int index = slices.indexOf(lastDt);
+
+	std::cout << "Computing " << (slices.size() - index - 1) << " signals for $" << ticker << " from " << lastDt << " to " << slices.last() << "..." << std::flush;
 
 	sigStore.beginTransaction();
 
-	for (unsigned int i = 0; i < slices.size(); i++) {
+	for (unsigned int i = index; i < slices.size(); i++) {
 		double bestSignal = computeSignal(paramStore, ticker, slices, i, args, true); // true for best signal
 		double defaultSignal = computeSignal(paramStore, ticker, slices, i, args, false); // false for default signal 
 		sigStore.insertSignal(ticker, slices.at(i).first, bestSignal, defaultSignal);

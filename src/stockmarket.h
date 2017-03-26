@@ -5,10 +5,61 @@
 #include <sqlite3.h>
 
 #include "sqlitedb.h"
+#include "datetime.h"
+#include "slices.h"
 
 class StockMarket : public SQLiteDB {
 public:
 	StockMarket(const std::string dbFile) : SQLiteDB(dbFile) {
+	}
+
+	DateTime nextDtAfter(const DateTime &dt) {
+		std::string sql1 = "SELECT tbl_name FROM sqlite_master where type='table'";
+
+		sqlite3_stmt *stmt1;
+		sqlite3_prepare_v2(this->db, sql1.c_str(), sql1.size(), &stmt1, nullptr);
+		sqlite3_step(stmt1);
+
+		std::vector<std::string> tickers;
+		int rc;
+		while ((rc = sqlite3_step(stmt1)) == SQLITE_ROW) {
+			std::string t = std::string((char*)sqlite3_column_text(stmt1, 0));
+			tickers.push_back(t);
+		}
+
+		sqlite3_finalize(stmt1);
+
+
+		std::string sql = "SELECT * FROM (";
+		for (unsigned int i = 0; i < tickers.size(); i++) {
+			sql += std::string("SELECT `datetime` FROM `") + tickers.at(i) + std::string("`");
+
+			if (i + 1 < tickers.size()) {
+				// not last
+				sql += " UNION ";
+			}
+		}
+		sql += ") WHERE `datetime` > '";
+		sql += dt.to_string();
+		sql += "' ORDER BY `datetime` ASC LIMIT 1";
+
+		sqlite3_stmt *stmt2;
+		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt2, nullptr);
+
+		rc = sqlite3_step(stmt2);
+
+		if (rc == SQLITE_DONE) {
+			// no more later datetimes...
+			sqlite3_finalize(stmt2);
+			DateTime ret;
+			return ret;
+		}
+
+		std::string text = std::string((char*)sqlite3_column_text(stmt2, 0));
+		sqlite3_finalize(stmt2);
+
+		DateTime ret(text);
+		return ret;
 	}
 
 	Slices loadAll(const std::string ticker) {

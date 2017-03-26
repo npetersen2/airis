@@ -21,6 +21,16 @@ public:
 	// TODO make this method
 	std::vector<Order> getOrders(const StockMarket &market, const SignalStore &sigStore, const DateTime &today) {
 		std::vector<Order> orders;
+
+		Order o;
+		o.ticker = "AAPL";
+		o.numShares = 1;
+		o.limitPrice = 99.99;
+		o.type = "buy";
+		o.dt = today;
+
+		orders.push_back(o);
+
 		return orders;
 	}
 

@@ -10,6 +10,20 @@ class SignalStore : public SQLiteDB {
 public:
 	SignalStore(const std::string &dbFile) : SQLiteDB(dbFile) {}
 
+	DateTime lastDtFor(const std::string &ticker) {
+		std::string sql = std::string("SELECT `datetime` FROM `") + ticker + std::string("` ORDER BY `datetime` DESC LIMIT 1");
+		
+		sqlite3_stmt *stmt;
+		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt, nullptr);
+
+		sqlite3_step(stmt);
+		std::string text = std::string((char*)sqlite3_column_text(stmt, 0));
+		sqlite3_finalize(stmt);
+
+		DateTime dt(text);
+		return dt;
+	}
+
 	void insertSignal(const std::string &ticker, const DateTime &dt, double bestSignal, double defaultSignal) {
 		make_table(ticker);
 
