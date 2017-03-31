@@ -14,7 +14,7 @@ public:
 		// remove all ParamSets and accompanying records for an AlgoInstance except the optimal ParamSet
 
 		int algo_inst_id = get_algo_inst_id(ticker, algoName);
-		int opt_paramset_id = get_opt_paramset_id(ticker, algoName);
+		int opt_paramset_id     = get_opt_paramset_id(ticker, algoName);
 		int default_paramset_id = get_default_paramset_id(ticker, algoName);
 
 		std::string sql = R"(

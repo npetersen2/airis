@@ -28,21 +28,29 @@
 #include "parameterstore.h"
 #include "signalstore.h"
 
+// simulations
 #include "portfolio.h"
 #include "order.h"
 #include "position.h"
 
-double computeSignal(ParameterStore &paramStore, const std::string &ticker, const Slices &slices, size_t todayIndex, const CLAs &args, bool bestSignal);
+double computeSignal(const std::string &ticker, const Slices &slices, size_t todayIndex, const CLAs &args, bool bestSignal);
 
-void opt(StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args);
-void sig(SignalStore &sigStore, StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args);
+void opt(const std::string &ticker, const CLAs &args);
+void sig(const std::string &ticker, const CLAs &args);
 
 void fillAlgos(const std::string &ticker, const Slices &slices, std::vector<std::shared_ptr<Algo>> &algos);
+
+void quit();
 
 bool MUST_EXIT = false;
 void handler_SIGINT(int s) {
 	MUST_EXIT = true;
 }
+
+Portfolio portfolio("data/TRANSACTIONS.db", 20, .3);
+StockMarket market("data/HISTORY.db");
+ParameterStore paramStore("data/PARAMETERS.db");
+SignalStore sigStore("data/TECH-SIGNALS.db");
 
 int main(int argc, char **argv) {
 	// handle Ctrl-C signal
@@ -54,11 +62,6 @@ int main(int argc, char **argv) {
 
 	CLAs args(argc, argv);
 	const std::string action = args.action;
-
-	Portfolio portfolio("data/TRANSACTIONS.db", 20, .3);
-	StockMarket market("data/HISTORY.db");
-	ParameterStore paramStore("data/PARAMETERS.db");
-	SignalStore sigStore("data/TECH-SIGNALS.db");
 
 	// run simulation
 	if (action == "sim") {
@@ -117,7 +120,7 @@ int main(int argc, char **argv) {
 		orders.insert(orders.end(), sOrders.begin(), sOrders.end());
 		orders.insert(orders.end(), bOrders.begin(), bOrders.end());
 
-		std::cout << "Orders for " << dt << ":" << std::endl;
+		std::cout << "Orders for " << dt << ":" << sOrders.size() << " sell order(s), " << bOrders.size() << " buy order(s)" << std::endl;
 		for (auto it = orders.begin(); it != orders.end(); it++) {
 			std::cout << *it << std::endl;
 		}
@@ -135,12 +138,12 @@ int main(int argc, char **argv) {
 			}
 
 			if (action == "opt") {
-				opt(market, paramStore, ticker, args);
+				opt(ticker, args);
 			}
 	
 			if (action == "sig") {
 				try {
-					sig(sigStore, market, paramStore, ticker, args);
+					sig(ticker, args);
 				} catch (std::exception &e) {
 					std::cout << "Error: " << e.what() << std::endl;
 					continue;
@@ -155,7 +158,7 @@ int main(int argc, char **argv) {
 	}
 }
 
-void sig(SignalStore &sigStore, StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args) {
+void sig(const std::string &ticker, const CLAs &args) {
 	Slices slices = market.loadAll(ticker);
 
 	DateTime initDt;
@@ -175,17 +178,15 @@ void sig(SignalStore &sigStore, StockMarket &market, ParameterStore &paramStore,
 	sigStore.beginTransaction();
 
 	for (unsigned int i = index; i < slices.size(); i++) {
-		double bestSignal = computeSignal(paramStore, ticker, slices, i, args, true); // true for best signal
-		double defaultSignal = computeSignal(paramStore, ticker, slices, i, args, false); // false for default signal 
+//		double bestSignal = computeSignal(paramStore, ticker, slices, i, args, true); // true for best signal
+		double bestSignal = 0;
+		double defaultSignal = computeSignal(ticker, slices, i, args, false); // false for default signal 
 		sigStore.insertSignal(ticker, slices.at(i).first, bestSignal, defaultSignal);
 
 		if (MUST_EXIT) {
 			std::cout << "\n\nReceived request to stop, so cleaning up database..." << std::endl;
 			sigStore.rollback();
-			sigStore.close();
-			market.close();
-			paramStore.close();
-			exit(0);
+			quit();
 		}
 	}
 
@@ -193,7 +194,7 @@ void sig(SignalStore &sigStore, StockMarket &market, ParameterStore &paramStore,
 	sigStore.endTransaction();
 }
 
-void opt(StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args) {
+void opt(const std::string &ticker, const CLAs &args) {
 	std::vector<std::shared_ptr<Algo>> algos;
 	Slices slices = market.loadAll(ticker);
 	fillAlgos(ticker, slices, algos);
@@ -201,14 +202,48 @@ void opt(StockMarket &market, ParameterStore &paramStore, const std::string &tic
 	paramStore.beginTransaction();
 
 	for (auto &a: algos) {
+		if (MUST_EXIT) {
+			std::cout << "\nReceived request to stop, so cleaning up database..." << std::endl;
+			paramStore.rollback();
+			quit();
+		}
+
+
 		if (paramStore.haveAlgoInstance(ticker, a->getComputerName())) {
 			std::cout << "Already optimized $" << ticker << " for " << a->getComputerName() << " algorithm, skipping" << std::endl;
 			continue;
 		}
 
+//		try {
+//			a->optimize(args, paramStore);
+//		} catch (std::exception &e) {
+//			std::cout << "Error: " << e.what() << std::endl;
+//			std::cout << "Skipping " << a->getComputerName() << " algorithm" << std::endl;
+//			paramStore.rollback();
+//			paramStore.beginTransaction();
+//			continue;
+//		}
+
+//		// optimal
+//		Variables bestVars = paramStore.getBestVariables(ticker, a->getComputerName());
+//		EvaluationResult bestResult = a->evaluate(bestVars, args);
+//		paramStore.assignOptimalParamSet(ticker, a->getComputerName(), bestVars, bestResult);
+
+
+		std::cout << "Generating ParamSet for " << a->getHumanName() << " algorithm for $" << ticker << "..." << std::endl;
+
 		try {
-			a->optimize(args, paramStore);
-		} catch (std::exception &e) {
+			// make AlgoInstance since it wasn't made above...
+			paramStore.newAlgoInstance(ticker, a->getComputerName(), slices.at(0).first, slices.last());
+
+			// default
+			Variables defaultVars = a->getDefaultVariables();
+			EvaluationResult defaultResult = a->evaluate(defaultVars, args);
+			paramStore.assignDefaultParamSet(ticker, a->getComputerName(), defaultVars, defaultResult);
+
+			// set datetimes to ParamSet
+			paramStore.assignDateTimesToParamSet(ticker, a->getComputerName(), slices.at(0).first, slices.last());
+		} catch(std::exception &e) {
 			std::cout << "Error: " << e.what() << std::endl;
 			std::cout << "Skipping " << a->getComputerName() << " algorithm" << std::endl;
 			paramStore.rollback();
@@ -216,38 +251,17 @@ void opt(StockMarket &market, ParameterStore &paramStore, const std::string &tic
 			continue;
 		}
 
-		if (MUST_EXIT) {
-			std::cout << "\nReceived request to stop, so cleaning up database..." << std::endl;
-			paramStore.rollback();
-			market.close();
-			paramStore.close();
-			exit(0);
-		}
-
-		// optimal
-		Variables bestVars = paramStore.getBestVariables(ticker, a->getComputerName());
-		EvaluationResult bestResult = a->evaluate(bestVars, args);
-		paramStore.assignOptimalParamSet(ticker, a->getComputerName(), bestVars, bestResult);
-
-		// default
-		Variables defaultVars = a->getDefaultVariables();
-		EvaluationResult defaultResult = a->evaluate(defaultVars, args);
-		paramStore.assignDefaultParamSet(ticker, a->getComputerName(), defaultVars, defaultResult);
-
-		// set datetimes to ParamSet
-		paramStore.assignDateTimesToParamSet(ticker, a->getComputerName(), slices.at(0).first, slices.last());
-
 		// delete all extra rows in DB
 		paramStore.removeNonOptimalParamSets(ticker, a->getComputerName());
 	}
 
-	std::cout << "Writing parameters to db file..." << std::endl;
+	std::cout << "writing parameters to db file..." << std::endl;
 	paramStore.endTransaction();
 
 	std::cout << std::endl;
 }
 
-double computeSignal(ParameterStore &paramStore, const std::string &ticker, const Slices &slices, size_t todayIndex, const CLAs &args, bool bestSignal) {
+double computeSignal(const std::string &ticker, const Slices &slices, size_t todayIndex, const CLAs &args, bool bestSignal) {
 	std::vector<std::shared_ptr<Algo>> algos;
 	fillAlgos(ticker, slices, algos);
 
@@ -284,3 +298,16 @@ void fillAlgos(const std::string &ticker, const Slices &slices, std::vector<std:
 	algos.push_back(std::shared_ptr<Algo>(new Algo_RSI(ticker, slices)));
 	algos.push_back(std::shared_ptr<Algo>(new Algo_MFI(ticker, slices)));
 }
+
+
+void quit() {
+	// close dbs
+	sigStore.close();
+	market.close();
+	paramStore.close();
+	portfolio.close();
+
+	exit(0);
+}
+
+
