@@ -18,6 +18,10 @@ public:
 		return -1;
 	}
 
+	Slice atDt(const DateTime &dt) {
+		return at(indexOf(dt)).second;
+	}
+
 	DateTime last() const {
 		if (size() == 0) {
 			throw std::out_of_range("Slices has size of 0. Cannot get last DateTime.");

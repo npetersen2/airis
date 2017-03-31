@@ -40,6 +40,6 @@ Downloading stock history:
 
 Optimizing, running, and computing signals:
 * `./airis --help`
-* `./airis [--tbb] opt <TICKER LIST>`
+* `./airis opt <TICKER LIST>`
 * `./airis [--verbose] run <TICKER LIST>`
 * `./airis sig <TICKER LIST>`

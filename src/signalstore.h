@@ -10,13 +10,36 @@ class SignalStore : public SQLiteDB {
 public:
 	SignalStore(const std::string &dbFile) : SQLiteDB(dbFile) {}
 
-	DateTime lastDtFor(const std::string &ticker) {
-		std::string sql = std::string("SELECT `datetime` FROM `") + ticker + std::string("` ORDER BY `datetime` DESC LIMIT 1");
-		
+	double getBestSignal(const std::string &ticker, const DateTime &dt) const {
+		std::string sql = std::string("SELECT `bestSignal` FROM `") + ticker + std::string("` WHERE `datetime` = '") + dt.to_string() + std::string("' LIMIT 1");
+
 		sqlite3_stmt *stmt;
 		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt, nullptr);
 
 		sqlite3_step(stmt);
+
+		double sig = sqlite3_column_double(stmt, 0);
+		sqlite3_finalize(stmt);
+
+		return sig;
+	}
+
+	DateTime lastDtFor(const std::string &ticker) {
+		make_table(ticker);
+
+		std::string sql = std::string("SELECT `datetime` FROM `") + ticker + std::string("` ORDER BY `datetime` DESC LIMIT 1");
+
+		sqlite3_stmt *stmt;
+		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt, nullptr);
+
+		int rc = sqlite3_step(stmt);
+		if (rc == SQLITE_DONE) {
+			// no dts in db
+			sqlite3_finalize(stmt);
+			DateTime ret;
+			return ret;
+		}
+
 		std::string text = std::string((char*)sqlite3_column_text(stmt, 0));
 		sqlite3_finalize(stmt);
 

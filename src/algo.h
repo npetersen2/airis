@@ -11,6 +11,8 @@
 #include <map>
 #include <chrono>
 #include <ctime>
+#include <atomic>
+#include <mutex>
 
 #include "datetime.h"
 #include "variables.h"
@@ -55,6 +57,9 @@ public:
 	EvaluationResult evaluate(const Variables &vars, const CLAs &clas);
 
 
+	void printProgress(int curr, int total, std::atomic<int> &dotsPrinted);
+
+
 	/* @brief optimizes the algo to produce the maximum profit for the given algo
 	 *        by rerunning the evaluate function for different input variables
 	 *        (usually takes a long time to run)
@@ -74,6 +79,9 @@ protected:
 	Slices slices;
 
 	tbb::concurrent_queue<Variables> vars;
+
+private:
+	std::mutex mutex;
 };
 
 #endif // ALGO_H

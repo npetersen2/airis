@@ -5,6 +5,7 @@
 #include <map>
 #include <functional>
 #include <unordered_map>
+#include <algorithm>
 
 // signal handling
 #include <cstdlib>
@@ -34,7 +35,6 @@
 double computeSignal(ParameterStore &paramStore, const std::string &ticker, const Slices &slices, size_t todayIndex, const CLAs &args, bool bestSignal);
 
 void opt(StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args);
-void run(StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args);
 void sig(SignalStore &sigStore, StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args);
 
 void fillAlgos(const std::string &ticker, const Slices &slices, std::vector<std::shared_ptr<Algo>> &algos);
@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
 	CLAs args(argc, argv);
 	const std::string action = args.action;
 
-	Portfolio portfolio("data/PORTFOLIO.db");
+	Portfolio portfolio("data/TRANSACTIONS.db", 20, .3);
 	StockMarket market("data/HISTORY.db");
 	ParameterStore paramStore("data/PARAMETERS.db");
 	SignalStore sigStore("data/TECH-SIGNALS.db");
@@ -64,23 +64,53 @@ int main(int argc, char **argv) {
 	if (action == "sim") {
 		DateTime initDt;
 
+		// make inital deposit into portfolio
+		Order dep;
+		dep.ticker = "";
+		dep.numShares = 0;
+		dep.limitPrice = 100000;
+		dep.type = "deposit";
+		dep.dt = initDt;
+		portfolio.execOrder(dep);
+
+		DateTime prevDt = initDt;
 		DateTime dt = market.nextDtAfter(initDt);
 		while (dt != initDt) {
-			std::cout << "gettings orders for " << dt << std::endl;
-			std::vector<Order> orders = portfolio.getOrders(market, sigStore, dt);
-			portfolio.execOrders(orders);
-
-			dt = market.nextDtAfter(dt);
-
 			if (MUST_EXIT) {
 				std::cout << "Upon request, exiting..." << std::endl;
+				prevDt = dt;
 				break;
 			}
+
+			std::cout << "Getting orders for " << dt << "..." << std::flush;
+			std::vector<Order> orders = portfolio.getOrders(market, sigStore, dt);
+
+			// print out order stats
+			int numBuys = std::count_if(orders.begin(), orders.end(), [](const Order &o) { return o.type == "buy"; });
+			int numSells = std::count_if(orders.begin(), orders.end(), [](const Order &o) { return o.type == "sell"; });
+			std::cout << std::to_string(numBuys) << " buy order(s), " << std::to_string(numSells) << " sell order(s).... cash is $" << portfolio.getCash() << std::endl;
+
+			portfolio.execOrders(orders);
+			prevDt = dt;
+			dt = market.nextDtAfter(dt);
+		}
+
+		portfolio.stopSimulation(prevDt);
+		return 0;
+	}
+
+	// compute orders for latest DateTime in the StockMarket
+	if (action == "run") {
+		DateTime dt = market.lastDt();
+		std::vector<Order> orders = portfolio.getOrders(market, sigStore, dt);
+
+		std::cout << "Orders for " << dt << ":" << std::endl;
+		for (auto it = orders.begin(); it != orders.end(); it++) {
+			std::cout << *it << std::endl;
 		}
 
 		return 0;
 	}
-
 
 	if (args.tickers.size() == 0) {
 		std::cout << "Error: '" << action << "' requires at least one ticker specified..." << std::endl;
@@ -95,15 +125,6 @@ int main(int argc, char **argv) {
 				opt(market, paramStore, ticker, args);
 			}
 	
-			if (action == "run") {
-				try {
-					run(market, paramStore, ticker, args);
-				} catch (std::exception &e) {
-					std::cout << "Error: " << e.what() << std::endl;
-					continue;
-				}
-			}
-
 			if (action == "sig") {
 				try {
 					sig(sigStore, market, paramStore, ticker, args);
@@ -124,8 +145,17 @@ int main(int argc, char **argv) {
 void sig(SignalStore &sigStore, StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args) {
 	Slices slices = market.loadAll(ticker);
 
+	DateTime initDt;
+
 	DateTime lastDt = sigStore.lastDtFor(ticker);
-	unsigned int index = slices.indexOf(lastDt);
+	unsigned int index;
+
+	if (lastDt == initDt) {
+		index = 0;
+		lastDt = slices.at(0).first;
+	} else {
+		index = slices.indexOf(lastDt);
+	}
 
 	std::cout << "Computing " << (slices.size() - index - 1) << " signals for $" << ticker << " from " << lastDt << " to " << slices.last() << "..." << std::flush;
 
@@ -202,23 +232,6 @@ void opt(StockMarket &market, ParameterStore &paramStore, const std::string &tic
 	paramStore.endTransaction();
 
 	std::cout << std::endl;
-}
-
-void run(StockMarket &market, ParameterStore &paramStore, const std::string &ticker, const CLAs &args) {
-	Slices slices = market.loadAll(ticker);
-
-	if (args.verbose) {
-		std::cout << "$" << ticker << " run on " << slices.last() << std::endl;
-	}
-
-	double signal = computeSignal(paramStore, ticker, slices, slices.size() - 1, args, true); // assume best parameters are used
-
-	if (args.verbose) {
-		std::cout << "Overall: " << signal << std::endl;
-		std::cout << std::endl;
-	} else {
-		std::cout << "$" << ticker << ": " << signal << " on " << slices.last() << std::endl;
-	}
 }
 
 double computeSignal(ParameterStore &paramStore, const std::string &ticker, const Slices &slices, size_t todayIndex, const CLAs &args, bool bestSignal) {

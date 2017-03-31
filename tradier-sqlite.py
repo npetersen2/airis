@@ -47,17 +47,17 @@ for t in sys.argv:
 	symbol = t
 
 	# create the table
-	c.execute("CREATE TABLE IF NOT EXISTS `" + symbol + "` (`datetime` TEXT PRIMARY KEY, `open` REAL NOT NULL, `high` REAL NOT NULL, `low` REAL NOT NULL, `close` REAL NOT NULL, `volume` REAL NOT NULL);")
+	c.execute("CREATE TABLE IF NOT EXISTS `History` (`ticker` TEXT NOT NULL, `datetime` TEXT NOT NULL, `open` REAL NOT NULL, `high` REAL NOT NULL, `low` REAL NOT NULL, `close` REAL NOT NULL, `volume` REAL NOT NULL);")
 
 	
 	# calculate start date
-	c.execute("SELECT `datetime` FROM `" + symbol + "` ORDER BY date(`datetime`) DESC LIMIT 1")
+	c.execute("SELECT `datetime` FROM `History` WHERE `ticker` = '" + symbol + "' ORDER BY date(`datetime`) DESC LIMIT 1")
 	result = c.fetchone()
 	if result is None:
 		start = OLDEST_DATA_WANTED
 	else:
 		start = result[0]
-		c.execute("DELETE FROM `" + symbol + "` WHERE `datetime`= " + start) # make sure to update last entry... could be an old intraday from tradier
+		c.execute("DELETE FROM `History` WHERE `ticker` = '" + symbol + "' AND `datetime`= '" + start + "'") # make sure to update last entry... could be an old intraday from tradier
 
 
 	# end is tomorrow (all data tradier has)
@@ -107,7 +107,7 @@ for t in sys.argv:
 			dhigh = days["high"]
 			dlow = days["low"]
 			date = datetime.datetime.strptime(days["date"], "%Y-%m-%d")
-			i = (date.strftime("%Y-%m-%d"), str(dopen), str(dhigh), str(dlow), str(dclose), str(dvol))
+			i = (symbol, date.strftime("%Y-%m-%d"), str(dopen), str(dhigh), str(dlow), str(dclose), str(dvol))
 			history.append(i)
 		else:
 			if VERBOSE:
@@ -120,17 +120,17 @@ for t in sys.argv:
 				dlow = day["low"]
 				date = datetime.datetime.strptime(day["date"], "%Y-%m-%d")
 	
-				i = (date.strftime("%Y-%m-%d"), str(dopen), str(dhigh), str(dlow), str(dclose), str(dvol))
+				i = (symbol, date.strftime("%Y-%m-%d"), str(dopen), str(dhigh), str(dlow), str(dclose), str(dvol))
 				history.append(i)
 
 		sys.stdout.flush()
 
 		# add the history
-		c.executemany("INSERT OR IGNORE INTO `" + symbol + "` (`datetime`, `open`, `high`, `low`, `close`, `volume`) VALUES (?,?,?,?,?,?);", history)
+		c.executemany("INSERT INTO `History` (`ticker`, `datetime`, `open`, `high`, `low`, `close`, `volume`) VALUES (?,?,?,?,?,?,?);", history)
 
 
 		if VERBOSE:
-			c.execute("SELECT COUNT(*) FROM `" + t + "`")
+			c.execute("SELECT COUNT(*) FROM `History` WHERE `ticker` = '" + t + "'")
 			result = c.fetchone()
 			print "now have " + str(result[0]) + " rows"
 		else:

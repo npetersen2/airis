@@ -9,6 +9,6 @@ if [ -z "$1" ]
 fi
 
 make
-python tradier-sqlite.py $ARGS
-./airis --tbb opt $ARGS
+python tradier-sqlite.py -v $ARGS
+./airis opt $ARGS
 ./airis sig $ARGS

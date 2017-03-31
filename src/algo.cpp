@@ -1,51 +1,39 @@
 #include "algo.h"
 
-void outputHumanTime(std::ostream &os, double seconds);
+void Algo::printProgress(int curr, int total, std::atomic<int> &dotsPrinted) {
+	std::lock_guard<std::mutex> guard(mutex);
+
+	double percent = (double)curr / total;
+	if (10 * percent > dotsPrinted.load()) {
+		std::cout << "." << std::flush;
+		dotsPrinted++;
+	}
+}
 
 void Algo::optimize(const CLAs &args, ParameterStore &paramStore) {
-	std::cout << "Optimizing " << humanName << " algorithm for $" << ticker << "..." << std::endl; 
+	std::cout << "Optimizing " << humanName << " algorithm for $" << ticker << std::flush; 
 
 	populateVariables();
 	tbb::concurrent_vector<std::pair<Variables, EvaluationResult>> results;
 
-	if (args.tbb) {
-		int var_size = vars.unsafe_size();
-		tbb::parallel_for(0, var_size, 1, [&](int i) {
-			Variables v;
-			if (vars.try_pop(v)) {
-				results.push_back({v, evaluate(v, args)});
-			}
-		});
-	} else {
-		int i = 0;
+	std::atomic<int> numVarsEvaluated(0);
+	std::atomic<int> dotsPrinted(0);
 
-		std::chrono::time_point<std::chrono::system_clock> start, end;
-		start = std::chrono::system_clock::now();
-
-		int vars_size = vars.unsafe_size();
+	int var_size = vars.unsafe_size();
+	tbb::parallel_for(0, var_size, 1, [&](int i) {
 		Variables v;
-		while (vars.try_pop(v)) {
+		if (vars.try_pop(v)) {
 			results.push_back({v, evaluate(v, args)});
-
-			end = std::chrono::system_clock::now();
-			std::chrono::duration<double> elapsed_seconds = end-start;
-			double seconds = elapsed_seconds.count();
-			double remaining = ((1 / ((double)i / vars_size)) * seconds) - seconds;
-
-			std::cout << std::fixed << std::setprecision(2) << "\r" << ((double)i / vars_size) * 100 << "\% done, ";
-			outputHumanTime(std::cout, seconds);
-			std::cout << " elapsed, ";
-			outputHumanTime(std::cout, remaining);
-			std::cout << " remaining       " << std::flush;
-
-			std::cout << std::defaultfloat << std::setprecision(6);
-			i++;
+			numVarsEvaluated++;
+			printProgress(numVarsEvaluated.load(), var_size, dotsPrinted);
 		}
+	});
 
-		std::cout << std::endl;
-	}
+	std::cout << "storing results..." << std::flush;
 
 	writeResults(results, paramStore);
+
+	std::cout << std::endl;
 }
 
 /* @brief evaluates the algo by running it over historical data
@@ -156,21 +144,6 @@ EvaluationResult Algo::evaluate(const Variables &vars, const CLAs &args) {
 	r.avgHoldPeriod = holdPeriods.size() == 0 ? 0 : std::accumulate(holdPeriods.begin(), holdPeriods.end(), 0.0) / holdPeriods.size();
 	return r;
 }
-
-void outputHumanTime(std::ostream &os, double seconds) {
-	if (seconds > 60) {
-		double minutes = seconds / 60;
-		if (minutes > 60) {
-			double hours = minutes / 60;
-			os << hours << " hour(s)";
-		} else {
-			os << minutes << " minute(s)";
-		}
-	} else {
-		os << seconds << " second(s)";
-	}
-}
-
 
 void Algo::writeResults(tbb::concurrent_vector<std::pair<Variables, EvaluationResult>> &results, ParameterStore &paramStore) {
 	int algo_inst_id = paramStore.newAlgoInstance(this->ticker, this->computerName, this->slices.at(0).first, this->slices.last());

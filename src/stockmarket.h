@@ -13,57 +13,65 @@ public:
 	StockMarket(const std::string dbFile) : SQLiteDB(dbFile) {
 	}
 
-	DateTime nextDtAfter(const DateTime &dt) {
-		std::string sql1 = "SELECT tbl_name FROM sqlite_master where type='table'";
+	DateTime nextDtAfter(const DateTime &dt) const {
+		std::string sql = std::string("SELECT DISTINCT `datetime` FROM `History` WHERE `datetime` > '") + dt.to_string() + std::string("' ORDER BY `datetime` ASC LIMIT 1");
 
-		sqlite3_stmt *stmt1;
-		sqlite3_prepare_v2(this->db, sql1.c_str(), sql1.size(), &stmt1, nullptr);
-		sqlite3_step(stmt1);
+		sqlite3_stmt *stmt;
+		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt, nullptr);
 
-		std::vector<std::string> tickers;
-		int rc;
-		while ((rc = sqlite3_step(stmt1)) == SQLITE_ROW) {
-			std::string t = std::string((char*)sqlite3_column_text(stmt1, 0));
-			tickers.push_back(t);
-		}
-
-		sqlite3_finalize(stmt1);
-
-
-		std::string sql = "SELECT * FROM (";
-		for (unsigned int i = 0; i < tickers.size(); i++) {
-			sql += std::string("SELECT `datetime` FROM `") + tickers.at(i) + std::string("`");
-
-			if (i + 1 < tickers.size()) {
-				// not last
-				sql += " UNION ";
-			}
-		}
-		sql += ") WHERE `datetime` > '";
-		sql += dt.to_string();
-		sql += "' ORDER BY `datetime` ASC LIMIT 1";
-
-		sqlite3_stmt *stmt2;
-		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt2, nullptr);
-
-		rc = sqlite3_step(stmt2);
+		int rc = sqlite3_step(stmt);
 
 		if (rc == SQLITE_DONE) {
 			// no more later datetimes...
-			sqlite3_finalize(stmt2);
+			sqlite3_finalize(stmt);
 			DateTime ret;
 			return ret;
 		}
 
-		std::string text = std::string((char*)sqlite3_column_text(stmt2, 0));
-		sqlite3_finalize(stmt2);
+		std::string text = std::string((char*)sqlite3_column_text(stmt, 0));
+		sqlite3_finalize(stmt);
 
 		DateTime ret(text);
 		return ret;
 	}
 
+	DateTime lastDt() const {
+		std::string sql = std::string("SELECT `datetime` FROM `History` ORDER BY `datetime` DESC LIMIT 1");
+
+		sqlite3_stmt *stmt;
+		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt, nullptr);
+
+		sqlite3_step(stmt);
+
+		std::string text = std::string((char*)sqlite3_column_text(stmt, 0));
+		sqlite3_finalize(stmt);
+
+		DateTime ret(text);
+		return ret;
+
+	}
+
+	std::vector<std::string> getAllTickers() const {
+		std::string sql = "SELECT DISTINCT `ticker` FROM `History` ORDER BY `ticker` ASC";
+
+		sqlite3_stmt *stmt;
+		sqlite3_prepare_v2(this->db, sql.c_str(), sql.size(), &stmt, nullptr);
+
+		std::vector<std::string> ret;
+
+		int rc;
+		while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+			std::string t = std::string((char*)sqlite3_column_text(stmt, 0));
+			ret.push_back(t);
+		}
+
+		sqlite3_finalize(stmt);
+		return ret;
+	}
+
+	// TODO cache this result...
 	Slices loadAll(const std::string ticker) {
-		const std::string sql = "SELECT `datetime`, `open`, `high`, `low`, `close`, `volume` FROM `" + ticker + "` ORDER BY `datetime` ASC";
+		const std::string sql = std::string("SELECT `datetime`, `open`, `high`, `low`, `close`, `volume` FROM `History` WHERE `ticker` = '") + ticker + std::string("' ORDER BY `datetime` ASC");
 
 		auto callback = +[](void *ptr, int numRows, char **data, char **colName) {
 			Slices *slices = (Slices*)ptr;
@@ -87,7 +95,7 @@ public:
 		exec_query(sql, callback, &slices);
 		return slices;
 	}
-
+/*
 	bool loaded(const std::string ticker) {
 		const std::string sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='" + ticker + "'";
 
@@ -115,6 +123,7 @@ public:
 		exec_query(sql, callback, &count);
 		return count;
 	}
+*/
 };
 
 #endif // STOCKMARKET_H
