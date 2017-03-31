@@ -83,14 +83,21 @@ int main(int argc, char **argv) {
 			}
 
 			std::cout << "Getting orders for " << dt << "..." << std::flush;
-			std::vector<Order> orders = portfolio.getOrders(market, sigStore, dt);
 
-			// print out order stats
-			int numBuys = std::count_if(orders.begin(), orders.end(), [](const Order &o) { return o.type == "buy"; });
-			int numSells = std::count_if(orders.begin(), orders.end(), [](const Order &o) { return o.type == "sell"; });
-			std::cout << std::to_string(numBuys) << " buy order(s), " << std::to_string(numSells) << " sell order(s).... cash is $" << portfolio.getCash() << std::endl;
+			// SELL ORDERS
+			std::vector<Order> sellOrders = portfolio.getSellOrders(market, sigStore, dt);
+			int numSucc = portfolio.execOrders(sellOrders);
+			std::cout << numSucc << "/" << sellOrders.size() << " sell order(s) successful, " << std::flush;
 
-			portfolio.execOrders(orders);
+			// BUY ORDERS
+			std::vector<Order> buyOrders = portfolio.getBuyOrders(market, sigStore, dt);
+			numSucc = portfolio.execOrders(buyOrders);
+			std::cout << numSucc << "/" << buyOrders.size() << " buy order(s) successful, " << std::flush;
+
+			// FAIR VALUE
+			double fairValue = portfolio.getFairValue();
+			std::cout << "fair portfolio value: $" << std::to_string(fairValue) << std::endl;
+
 			prevDt = dt;
 			dt = market.nextDtAfter(dt);
 		}
@@ -102,7 +109,13 @@ int main(int argc, char **argv) {
 	// compute orders for latest DateTime in the StockMarket
 	if (action == "run") {
 		DateTime dt = market.lastDt();
-		std::vector<Order> orders = portfolio.getOrders(market, sigStore, dt);
+		std::vector<Order> sOrders = portfolio.getSellOrders(market, sigStore, dt);
+		std::vector<Order> bOrders = portfolio.getBuyOrders(market, sigStore, dt);
+
+		// concatenate buy/sell orders
+		std::vector<Order> orders;
+		orders.insert(orders.end(), sOrders.begin(), sOrders.end());
+		orders.insert(orders.end(), bOrders.begin(), bOrders.end());
 
 		std::cout << "Orders for " << dt << ":" << std::endl;
 		for (auto it = orders.begin(); it != orders.end(); it++) {

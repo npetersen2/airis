@@ -22,14 +22,11 @@ public:
 		populate_db_schema();
 	}
 
-	// TODO improve this
-	std::vector<Order> getOrders(StockMarket &market, const SignalStore &sigStore, const DateTime &today) const {
+	// SELL ORDERS
+	std::vector<Order> getSellOrders(StockMarket &market, const SignalStore &sigStore, const DateTime &today) const {
 		std::vector<Order> ret;
 
-		// *********************
-		// SELL
 		// sell off current positions if signal is > 0
-		// *********************
 		std::vector<Position> currHolding = currentlyHolding();
 		for (Position &p: currHolding) {
 			double sig = sigStore.getBestSignal(p.ticker, today);
@@ -46,12 +43,14 @@ public:
 			}
 		}
 
+		return ret;
+	}
 
+	// BUY ORDERS
+	std::vector<Order> getBuyOrders(StockMarket &market, const SignalStore &sigStore, const DateTime &today) const {
+		std::vector<Order> ret;
 
-		// *********************
-		// BUY
 		// buy 1 share if sig <= -90
-		// *********************
 		std::vector<std::string> tickers = market.getAllTickers();
 		for (auto &t: tickers) {
 			double sig = sigStore.getBestSignal(t, today);
@@ -100,18 +99,25 @@ public:
 			return true;
 		}
 
-		std::cout << "SKIPPED BAD ORDER: " << o << std::endl;
+		// std::cout << "SKIPPED BAD ORDER: " << o << std::endl;
 		return false;
 	}
 
-	void execOrders(const std::vector<Order> &orders) {
+	int execOrders(const std::vector<Order> &orders) {
 		beginTransaction();
 
+		int numGood = 0;
+
 		for (auto it = orders.begin(); it != orders.end(); it++) {
-			execOrder(*it);
+			bool rc = execOrder(*it);
+			if (rc) {
+				numGood++;
+			}
 		}
 
 		endTransaction();
+
+		return numGood;
 	}
 
 	void stopSimulation(const DateTime &dt) {
@@ -131,6 +137,11 @@ public:
 
 	double getCash() const {
 		return cash;
+	}
+
+	// TODO make this
+	double getFairValue() const {
+		return 0;
 	}
 
 private:
