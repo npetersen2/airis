@@ -12,7 +12,7 @@ SRCS := $(shell find $(SRC_DIR) -name *.cpp)
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 DEPS := $(OBJS:.o=.d)
 
-CPPFLAGS ?= -MMD -MP -O3 -std=c++11
+CPPFLAGS ?= -MMD -MP -O0 -std=c++11
 
 $(TARGET_EXEC): $(OBJS)
 	$(CC) $(OBJS) $(INCLUDES) $(LIBS) -o $@

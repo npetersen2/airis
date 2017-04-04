@@ -1,12 +1,13 @@
 #ifndef SQLITEDB_H
 #define SQLITEDB_H
 
+#include <iostream>
 #include <string>
 #include <sqlite3.h>
 
 class SQLiteDB {
 public:
-	SQLiteDB(const std::string dbFile) {
+	SQLiteDB(const std::string &dbFile) {
 		this->dbFile = dbFile;
 		open_db();
 	}

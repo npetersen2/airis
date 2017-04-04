@@ -120,9 +120,9 @@ int main(int argc, char **argv) {
 		orders.insert(orders.end(), sOrders.begin(), sOrders.end());
 		orders.insert(orders.end(), bOrders.begin(), bOrders.end());
 
-		std::cout << "Orders for " << dt << ":" << sOrders.size() << " sell order(s), " << bOrders.size() << " buy order(s)" << std::endl;
+		std::cout << "Orders for " << dt << ": " << sOrders.size() << " sell order(s), " << bOrders.size() << " buy order(s):" << std::endl;
 		for (auto it = orders.begin(); it != orders.end(); it++) {
-			std::cout << *it << std::endl;
+			std::cout << "\t" << *it << std::endl;
 		}
 
 		return 0;

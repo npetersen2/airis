@@ -1,8 +1,8 @@
 #ifndef VARIABLES_H
 #define VARIABLES_H
 
-#include <vector>
 #include <string>
+#include <map>
 
 class Variables : public std::map<std::string, double> {
 public:
