@@ -43,7 +43,7 @@ private:
 	void open_db() {
 		if (sqlite3_open(dbFile.c_str(), &(this->db))) {
 			std::cout
-				<< "Error opening stock history database... "
+				<< "Error opening database '" << dbFile << "'... "
 				<< sqlite3_errmsg(this->db)
 				<< std::endl;
 			exit(0);
