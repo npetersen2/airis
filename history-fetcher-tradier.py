@@ -47,9 +47,11 @@ for t in sys.argv:
 	symbol = t
 
 	# create the table
-	c.execute("CREATE TABLE IF NOT EXISTS `History` (`ticker` TEXT NOT NULL, `datetime` TEXT NOT NULL, `open` REAL NOT NULL, `high` REAL NOT NULL, `low` REAL NOT NULL, `close` REAL NOT NULL, `volume` REAL NOT NULL);")
+	s1 = "CREATE TABLE IF NOT EXISTS `History` (`ticker` TEXT NOT NULL, `datetime` TEXT NOT NULL, `open` REAL NOT NULL, `high` REAL NOT NULL, `low` REAL NOT NULL, `close` REAL NOT NULL, `volume` REAL NOT NULL);"
+	s2 = "CREATE INDEX IF NOT EXISTS `dtindex` ON `History` (`datetime`);"
+	c.execute(s1)
+	c.execute(s2)
 
-	
 	# calculate start date
 	c.execute("SELECT `datetime` FROM `History` WHERE `ticker` = '" + symbol + "' ORDER BY date(`datetime`) DESC LIMIT 1")
 	result = c.fetchone()

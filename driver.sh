@@ -9,7 +9,7 @@ if [ -z "$1" ]
 fi
 
 make
-python tradier-sqlite.py -v $ARGS
+python history-fetcher-tradier.py -v $ARGS
 ./airis opt $ARGS
 ./airis sig $ARGS
 ./airis sim
